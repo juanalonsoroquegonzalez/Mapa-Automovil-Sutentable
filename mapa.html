@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <style>
+    #map {
+      height: 400px;
+      width: 100%;
+    }
+
+    #auto {
+      color: blue;
+      font: oblique bold 30px cursive;
+    }
+
+    .custom-map-control-button {
+      background-color: #fff;
+      border: 0;
+      border-radius: 2px;
+      box-shadow: 0 1px 4px -1px rgba(0, 0, 0, 0.3);
+      margin: 10px;
+      padding: 0 0.5em;
+      font: 400 18px Roboto, Arial, sans-serif;
+      overflow: hidden;
+      height: 40px;
+      cursor: pointer;
+    }
+
+    .custom-map-control-button:hover {
+      background: rgb(235, 235, 235);
+    }
+  </style>
+  <title>Geolocation</title>
+  <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+  <script>
+    let map, infoWindow, searchBox, marker, directionsService, directionsRenderer;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 14
+      });
+
+      infoWindow = new google.maps.InfoWindow();
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer();
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            const pos = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            };
+
+            infoWindow.setPosition(pos);
+            infoWindow.setContent("Location found.");
+            infoWindow.open(map);
+            map.setCenter(pos);
+          },
+          () => {
+            handleLocationError(true, infoWindow, map.getCenter());
+          }
+        );
+      } else {
+        handleLocationError(false, infoWindow, map.getCenter());
+      }
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "Search places...";
+      input.classList.add("custom-map-control-button");
+
+      map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+      searchBox = new google.maps.places.SearchBox(input);
+
+      searchBox.addListener("places_changed", () => {
+        const places = searchBox.getPlaces();
+
+        if (places.length === 0) {
+          return;
+        }
+
+        if (marker) {
+          marker.setMap(null);
+        }
+        directionsRenderer.setMap(null);
+
+        const place = places[0];
+        marker = new google.maps.Marker({
+          map,
+          position: place.geometry.location
+        });
+
+        marker.addListener("click", () => {
+          infoWindow.setContent(place.name);
+          infoWindow.open(map, marker);
+        });
+
+        map.setCenter(place.geometry.location);
+
+        calculateAndDisplayRoute(place.geometry.location);
+      });
+
+      map.addListener("dblclick", event => {
+        if (marker) {
+          marker.setMap(null);
+        }
+        directionsRenderer.setMap(null);
+
+        addMarker(event.latLng);
+
+        calculateAndDisplayRoute(event.latLng);
+      });
+
+      const saveButton = document.createElement("button");
+      saveButton.textContent = "Save Location";
+      saveButton.classList.add("custom-map-control-button");
+      map.controls[google.maps.ControlPosition.TOP_LEFT].push(saveButton);
+
+      saveButton.addEventListener("click", () => {
+        if (marker) {
+          saveLocationInfo(marker.getPosition(), infoWindow.getContent());
+        }
+      });
+    }
+
+    function handleLocationError(browserHasGeolocation, infoWindow, pos) {
+      infoWindow.setPosition(pos);
+      infoWindow.setContent(
+        browserHasGeolocation ?
+        "Error: The Geolocation service failed." :
+        "Error: Your browser doesn't support geolocation."
+      );
+      infoWindow.open(map);
+    }
+
+    function addMarker(location) {
+      marker = new google.maps.Marker({
+        position: location,
+        map
+      });
+
+      marker.addListener("click", () => {
+        infoWindow.setContent("Marker position: " + location.toUrlValue(6));
+        infoWindow.open(map, marker);
+      });
+    }
+
+    function calculateAndDisplayRoute(destination) {
+      directionsService.route({
+        origin: infoWindow.getPosition(),
+        destination: destination,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, (response, status) => {
+        if (status === "OK") {
+          directionsRenderer.setDirections(response);
+          directionsRenderer.setMap(map);
+
+          const route = response.routes[0];
+          const routeInfo = `Distancia: ${route.legs[0].distance.text}, Duración: ${route.legs[0].duration.text}`;
+          infoWindow.setContent(routeInfo);
+        } else {
+          window.alert("Directions request failed due to " + status);
+        }
+      });
+    }
+
+    infowindow.setContent(`${place.name}<br>${place.formatted_address}`);
+
+    let detailsContent = place.name;
+    if (place.formatted_address) {
+      detailsContent += `<br>${place.formatted_address}`;
+    }
+    if (place.distance && place.duration) {
+      detailsContent += `<br>Distance: ${place.distance.text}, Duration: ${place.duration.text}`;
+    }
+    infowindow.setContent(detailsContent);
+
+    let content = `Coordinates: ${position.toUrlValue(6)}\nName: ${place.name}`;
+    if (place.formatted_address) {
+      content += `\nAddress: ${place.formatted_address}`;
+    }
+    if (place.distance && place.duration) {
+      content += `\nDistance: ${place.distance.text}\nDuration: ${place.duration.text}`;
+    }
+
+    function saveLocationInfo(position, place) {
+      const content = `Coordinates: ${position.toUrlValue(6)}\nName: ${place.name}`;
+
+      const blob = new Blob([content], {
+        type: "text/plain"
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "location_info.txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    }
+  </script>
+</head>
+
+<body>
+  <div id="auto">Automovil Inteligente Sustentable</div>
+  <div id="map"></div>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC40vUgddWkU1g8MU6truYa0eCtXbETxFo&callback=initMap&libraries=places&v=weekly" defer></script>
+  <div id="charge">Nivel de carga del automovil: 56% </div>
+</body>
+
+</html>
